@@ -16,10 +16,11 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers import config_validation as cv, entity_platform, service
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
+from .utils import _get_sources
+
 import voluptuous as vol
 
 from .const import (
-    CONF_SOURCES,
     DOMAIN,
     FIRST_RUN,
     MONOPRICE_OBJECT,
@@ -28,9 +29,13 @@ from .const import (
     SERVICE_SET_BALANCE,
     SERVICE_SET_BASS,
     SERVICE_SET_TREBLE,
+    SERVICE_SET_ALL_ZONES_SOURCE,
+    SERVICE_SET_ZONE_SOURCE,
     ATTR_BALANCE,
     ATTR_BASS,
-    ATTR_TREBLE
+    ATTR_TREBLE,
+    ATTR_ALL_ZONES_SOURCE,
+    ATTR_ZONE_SOURCE,
 )
 
 SET_BALANCE_SCHEMA = vol.Schema(
@@ -54,30 +59,24 @@ SET_TREBLE_SCHEMA = vol.Schema(
     }
 )
 
+SET_ALL_ZONES_SOURCE_SCHEMA = vol.Schema(
+    {
+        vol.Optional("entity_id", default=[]): vol.All(cv.ensure_list, [cv.string]),
+        vol.Required(ATTR_ALL_ZONES_SOURCE, default=1): vol.All(int, vol.Range(min=1, max=6))
+    }
+)
+
+SET_ZONE_SOURCE_SCHEMA = vol.Schema(
+    {
+        vol.Optional("entity_id", default=[]): vol.All(cv.ensure_list, [cv.string]),
+        vol.Required(ATTR_ZONE_SOURCE, default=1): vol.All(int, vol.Range(min=1, max=6))
+    }
+)
+
 _LOGGER = logging.getLogger(__name__)
 
 MAX_VOLUME = 38
 PARALLEL_UPDATES = 1
-
-
-@core.callback
-def _get_sources_from_dict(data):
-    sources_config = data[CONF_SOURCES]
-    source_id_name = {int(index): name for index, name in sources_config.items()}
-    source_name_id = {v: k for k, v in source_id_name.items()}
-    source_names = sorted(source_name_id.keys(), key=lambda v: source_name_id[v])
-
-    return [source_id_name, source_name_id, source_names]
-
-
-@core.callback
-def _get_sources(config_entry):
-    if CONF_SOURCES in config_entry.options:
-        data = config_entry.options
-    else:
-        data = config_entry.data
-    return _get_sources_from_dict(data)
-
 
 async def async_setup_entry(
     hass: HomeAssistant,
@@ -118,6 +117,11 @@ async def async_setup_entry(
                 entity.set_bass(service_call)
             elif service_call.service == SERVICE_SET_TREBLE:
                 entity.set_treble(service_call)
+            elif service_call.service == SERVICE_SET_ZONE_SOURCE:
+                entity.select_source(service_call)
+            elif service_call.service == SERVICE_SET_ALL_ZONES_SOURCE:
+                for entity in entities:
+                    entity.select_source(service_call); 
 
     @service.verify_domain_control(hass, DOMAIN)
     async def async_service_handle(service_call: core.ServiceCall) -> None:
@@ -128,6 +132,7 @@ async def async_setup_entry(
             return
 
         hass.async_add_executor_job(_call_service, entities, service_call)
+
 
     hass.services.async_register(
         DOMAIN,
@@ -162,6 +167,20 @@ async def async_setup_entry(
         SERVICE_SET_TREBLE,
         async_service_handle,
         schema=SET_TREBLE_SCHEMA,
+    )
+
+    hass.services.async_register(
+        DOMAIN,
+        SERVICE_SET_ALL_ZONES_SOURCE,
+        async_service_handle,
+        schema=SET_ALL_ZONES_SOURCE_SCHEMA,
+    )
+
+    hass.services.async_register(
+        DOMAIN,
+        SERVICE_SET_ZONE_SOURCE,
+        async_service_handle,
+        schema=SET_ZONE_SOURCE_SCHEMA,
     )
 
 class MonopriceZone(MediaPlayerEntity):
@@ -207,6 +226,10 @@ class MonopriceZone(MediaPlayerEntity):
 
     def update(self) -> None:
         """Retrieve latest state."""
+        if self._zone_id > 20:
+            self._update_success = False
+            return
+
         try:
             state = self._monoprice.zone_status(self._zone_id)
         except SerialException:
@@ -223,7 +246,6 @@ class MonopriceZone(MediaPlayerEntity):
         self._attr_is_volume_muted = state.mute
         idx = state.source
         self._attr_source = self._source_id_name.get(idx)
-
     @property
     def entity_registry_enabled_default(self) -> bool:
         """Return if the entity should be enabled when first added to the entity registry."""
@@ -246,7 +268,7 @@ class MonopriceZone(MediaPlayerEntity):
             self._monoprice.restore_zone(self._snapshot)
             self.schedule_update_ha_state(True)
 
-    def select_source(self, source: str) -> None:
+    def select_source_by_name(self, source: str) -> None:
         """Set input source."""
         if source not in self._source_name_id:
             return
@@ -297,6 +319,11 @@ class MonopriceZone(MediaPlayerEntity):
         """Set treble level."""
         level = int(call.data.get(ATTR_TREBLE))
         self._monoprice.set_treble(self._zone_id, level)
+
+    def select_source(self, call) -> None:
+        """Set input source."""
+        source = int(call.data.get(ATTR_ZONE_SOURCE))
+        self._monoprice.set_source(self._zone_id, source)        
 
     def select_sound_mode(self, sound_mode) -> None:
         """Switch the sound mode of the entity."""

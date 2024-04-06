@@ -1,3 +1,6 @@
-
+.idea
+.idea/*
+pymonoprice
+pymonoprice/*
 .DS_Store
 custom_components/media_player_old.py

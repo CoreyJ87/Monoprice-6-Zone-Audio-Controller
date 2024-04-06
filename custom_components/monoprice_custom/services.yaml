@@ -45,3 +45,40 @@ set_treble:
       required: true
       example: "10"
       default: "7"
+
+set_all_zones_source:
+  target:
+    entity:
+      integration: monoprice
+      domain: media_player
+  fields:
+    source:
+      description: integer from 1 to 6 inclusive.
+      required: true
+      example: "6"
+      default: "1"
+
+set_zone_source:
+  target:
+    entity:
+      integration: monoprice
+      domain: media_player
+  fields:
+    source:
+      description: integer from 1 to 6 inclusive.
+      required: true
+      example: "6"
+      default: "1"
+
+
+set_volume_level:
+  target:
+    entity:
+      integration: monoprice
+      domain: media_player
+  fields:
+    level:
+      description: integer from 0 to 1
+      required: true
+      example: "0.1"
+      default: "0.1"      
