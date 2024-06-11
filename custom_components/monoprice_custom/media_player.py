@@ -268,7 +268,7 @@ class MonopriceZone(MediaPlayerEntity):
             self._monoprice.restore_zone(self._snapshot)
             self.schedule_update_ha_state(True)
 
-    def select_source_by_name(self, source: str) -> None:
+    def select_source(self, source: str) -> None:
         """Set input source."""
         if source not in self._source_name_id:
             return
