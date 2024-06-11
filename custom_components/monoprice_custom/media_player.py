@@ -320,11 +320,6 @@ class MonopriceZone(MediaPlayerEntity):
         level = int(call.data.get(ATTR_TREBLE))
         self._monoprice.set_treble(self._zone_id, level)
 
-    def select_source(self, call) -> None:
-        """Set input source."""
-        source = int(call.data.get(ATTR_ZONE_SOURCE))
-        self._monoprice.set_source(self._zone_id, source)        
-
     def select_sound_mode(self, sound_mode) -> None:
         """Switch the sound mode of the entity."""
         self._sound_mode = sound_mode
