@@ -118,10 +118,10 @@ async def async_setup_entry(
             elif service_call.service == SERVICE_SET_TREBLE:
                 entity.set_treble(service_call)
             elif service_call.service == SERVICE_SET_ZONE_SOURCE:
-                entity.select_source(service_call)
+                entity.select_source_for_zones(service_call)
             elif service_call.service == SERVICE_SET_ALL_ZONES_SOURCE:
                 for entity in entities:
-                    entity.select_source(service_call); 
+                    entity.select_source_for_zones(service_call); 
 
     @service.verify_domain_control(hass, DOMAIN)
     async def async_service_handle(service_call: core.ServiceCall) -> None:
@@ -319,6 +319,11 @@ class MonopriceZone(MediaPlayerEntity):
         """Set treble level."""
         level = int(call.data.get(ATTR_TREBLE))
         self._monoprice.set_treble(self._zone_id, level)
+
+    def select_source_for_zones(self, call) -> None:
+        """Set input source for all zones."""
+        source = int(call.data.get(ATTR_ZONE_SOURCE))
+        self._monoprice.set_source(self._zone_id, source)         
 
     def select_sound_mode(self, sound_mode) -> None:
         """Switch the sound mode of the entity."""
