@@ -17,7 +17,7 @@ from .const import (
     UNDO_UPDATE_LISTENER,
 )
 
-PLATFORMS = [Platform.MEDIA_PLAYER, Platform.SENSOR, Platform.NUMBER]
+PLATFORMS = [Platform.MEDIA_PLAYER, Platform.SENSOR, Platform.NUMBER, Platform.SELECT]
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -56,12 +56,25 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Unload a config entry."""
     unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
-    if unload_ok:
-        hass.data[DOMAIN][entry.entry_id][UNDO_UPDATE_LISTENER]()
-        hass.data[DOMAIN].pop(entry.entry_id)
+    if not unload_ok:
+        return False
 
-    return unload_ok
+    hass.data[DOMAIN][entry.entry_id][UNDO_UPDATE_LISTENER]()
 
+    def _cleanup(monoprice) -> None:
+        """Destroy the Monoprice object.
+
+        Destroying the Monoprice closes the serial connection, do it in an executor so the garbage
+        collection does not block.
+        """
+        del monoprice
+
+    monoprice = hass.data[DOMAIN][entry.entry_id][MONOPRICE_OBJECT]
+    hass.data[DOMAIN].pop(entry.entry_id)
+
+    await hass.async_add_executor_job(_cleanup, monoprice)
+
+    return True 
 
 async def _update_listener(hass: HomeAssistant, entry: ConfigEntry) -> None:
     """Handle options update."""

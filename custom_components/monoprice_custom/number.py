@@ -98,6 +98,10 @@ class MonopriceZone(NumberEntity):
         
     def update(self):
         """Retrieve latest value."""
+        if self._zone_id > 20:
+            self._update_success = False
+            return
+
         try:
             state = self._monoprice.zone_status(self._zone_id)
         except SerialException:

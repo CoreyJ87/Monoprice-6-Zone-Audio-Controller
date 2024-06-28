@@ -15,7 +15,7 @@ except ImportError:
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_PORT
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers import config_validation as cv, entity_platform, service
+from homeassistant.helpers import config_validation as entity_platform, service
 from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
@@ -45,6 +45,7 @@ async def async_setup_entry(
             entities.append(MonopriceZone(monoprice, "Keypad", config_entry.entry_id, zone_id))
             entities.append(MonopriceZone(monoprice, "Public Anouncement", config_entry.entry_id, zone_id))
             entities.append(MonopriceZone(monoprice, "Do Not Disturb", config_entry.entry_id, zone_id))
+            entities.append(MonopriceZone(monoprice, "Source", config_entry.entry_id, zone_id)) 
 
     # only call update before add if it's the first run so we can try to detect zones
     first_run = hass.data[DOMAIN][config_entry.entry_id][FIRST_RUN]
@@ -85,11 +86,17 @@ class MonopriceZone(SensorEntity):
             self._attr_icon = "mdi:bullhorn"
         elif(sensor_type == "Do Not Disturb"):
             self._attr_icon = "mdi:weather-night"
+        elif(sensor_type == "Source"):
+            self._attr_icon = "mdi:source-branch" 
             
         self._update_success = True
 
     def update(self):
         """Retrieve latest value."""
+        if self._zone_id > 20:
+            self._update_success = False
+            return
+
         try:
             state = self._monoprice.zone_status(self._zone_id)
         except SerialException:
@@ -107,6 +114,8 @@ class MonopriceZone(SensorEntity):
             self._attr_native_value = '{}'.format('On' if state.pa else 'Off')
         elif(self._sensor_type == "Do Not Disturb"):
             self._attr_native_value = '{}'.format('On' if state.do_not_disturb else 'Off')
+        elif(self._sensor_type == "Source"):
+            self._attr_native_value = '{}'.format(state.source)
 
     @property
     def entity_registry_enabled_default(self) -> bool:
