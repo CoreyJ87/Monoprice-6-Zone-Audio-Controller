@@ -9,8 +9,10 @@
         },
         "step": {
             "user": {
+                "title": "Connect to the device",
+                "description": "Enter the address of your Monoprice amplifier using the format socket://host:port (e.g. socket://192.168.1.250:8235).",
                 "data": {
-                    "port": "Port",
+                    "port": "Device address",
                     "source_1": "Name of source #1",
                     "source_2": "Name of source #2",
                     "source_3": "Name of source #3",
@@ -18,7 +20,9 @@
                     "source_5": "Name of source #5",
                     "source_6": "Name of source #6"
                 },
-                "title": "Connect to the device"
+                "data_description": {
+                    "port": "e.g. socket://192.168.1.250:8235"
+                }
             }
         }
     },

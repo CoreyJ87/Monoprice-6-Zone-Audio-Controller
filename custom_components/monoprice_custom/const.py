@@ -20,18 +20,10 @@ SERVICE_SET_BASS = "set_bass"
 SERVICE_SET_TREBLE = "set_treble"
 SERVICE_SET_ALL_ZONES_SOURCE = "set_all_zones_source"
 SERVICE_SET_ZONE_SOURCE = "set_zone_source"
-SERVICE_SET_VOLUME_LEVEL = "set_volume_level"
-
-
-
-FIRST_RUN = "first_run"
-MONOPRICE_OBJECT = "monoprice_object"
-UNDO_UPDATE_LISTENER = "update_update_listener"
 
 ATTR_BALANCE = "level"
 ATTR_BASS = "level"
 ATTR_TREBLE = "level"
-ATTR_VOLUME_LEVEL = "level"
 
 ATTR_ZONE_SOURCE = "source"
 ATTR_ALL_ZONES_SOURCE = "source"
