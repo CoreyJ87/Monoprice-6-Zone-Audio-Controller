@@ -1,7 +1,11 @@
 """Support for interfacing with Monoprice 6 zone home audio controller."""
+
+from __future__ import annotations
+
 import logging
 
 from serial import SerialException
+import voluptuous as vol
 
 from homeassistant import core
 from homeassistant.components.media_player import (
@@ -10,66 +14,66 @@ from homeassistant.components.media_player import (
     MediaPlayerEntityFeature,
     MediaPlayerState,
 )
-from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_PORT
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import config_validation as cv, entity_platform, service
 from homeassistant.helpers.device_registry import DeviceInfo
-from homeassistant.helpers.entity_platform import AddEntitiesCallback
-from .utils import _get_sources
+from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
-import voluptuous as vol
-
+from . import MonopriceConfigEntry
 from .const import (
-    DOMAIN,
-    FIRST_RUN,
-    MONOPRICE_OBJECT,
-    SERVICE_RESTORE,
-    SERVICE_SNAPSHOT,
-    SERVICE_SET_BALANCE,
-    SERVICE_SET_BASS,
-    SERVICE_SET_TREBLE,
-    SERVICE_SET_ALL_ZONES_SOURCE,
-    SERVICE_SET_ZONE_SOURCE,
+    ATTR_ALL_ZONES_SOURCE,
     ATTR_BALANCE,
     ATTR_BASS,
     ATTR_TREBLE,
-    ATTR_ALL_ZONES_SOURCE,
     ATTR_ZONE_SOURCE,
+    DOMAIN,
+    SERVICE_RESTORE,
+    SERVICE_SET_ALL_ZONES_SOURCE,
+    SERVICE_SET_BALANCE,
+    SERVICE_SET_BASS,
+    SERVICE_SET_TREBLE,
+    SERVICE_SET_ZONE_SOURCE,
+    SERVICE_SNAPSHOT,
 )
+from .utils import _get_sources
 
 SET_BALANCE_SCHEMA = vol.Schema(
     {
         vol.Optional("entity_id", default=[]): vol.All(cv.ensure_list, [cv.string]),
-        vol.Optional(ATTR_BALANCE, default=0): vol.All(int, vol.Range(min=0, max=21))
+        vol.Optional(ATTR_BALANCE, default=0): vol.All(int, vol.Range(min=0, max=21)),
     }
 )
 
 SET_BASS_SCHEMA = vol.Schema(
     {
         vol.Optional("entity_id", default=[]): vol.All(cv.ensure_list, [cv.string]),
-        vol.Optional(ATTR_BASS, default=5): vol.All(int, vol.Range(min=0, max=15))
+        vol.Optional(ATTR_BASS, default=5): vol.All(int, vol.Range(min=0, max=15)),
     }
 )
 
 SET_TREBLE_SCHEMA = vol.Schema(
     {
         vol.Optional("entity_id", default=[]): vol.All(cv.ensure_list, [cv.string]),
-        vol.Optional(ATTR_TREBLE, default=5): vol.All(int, vol.Range(min=0, max=15))
+        vol.Optional(ATTR_TREBLE, default=5): vol.All(int, vol.Range(min=0, max=15)),
     }
 )
 
 SET_ALL_ZONES_SOURCE_SCHEMA = vol.Schema(
     {
         vol.Optional("entity_id", default=[]): vol.All(cv.ensure_list, [cv.string]),
-        vol.Required(ATTR_ALL_ZONES_SOURCE, default=1): vol.All(int, vol.Range(min=1, max=6))
+        vol.Required(ATTR_ALL_ZONES_SOURCE, default=1): vol.All(
+            int, vol.Range(min=1, max=6)
+        ),
     }
 )
 
 SET_ZONE_SOURCE_SCHEMA = vol.Schema(
     {
         vol.Optional("entity_id", default=[]): vol.All(cv.ensure_list, [cv.string]),
-        vol.Required(ATTR_ZONE_SOURCE, default=1): vol.All(int, vol.Range(min=1, max=6))
+        vol.Required(ATTR_ZONE_SOURCE, default=1): vol.All(
+            int, vol.Range(min=1, max=6)
+        ),
     }
 )
 
@@ -78,15 +82,16 @@ _LOGGER = logging.getLogger(__name__)
 MAX_VOLUME = 38
 PARALLEL_UPDATES = 1
 
+
 async def async_setup_entry(
     hass: HomeAssistant,
-    config_entry: ConfigEntry,
-    async_add_entities: AddEntitiesCallback,
+    config_entry: MonopriceConfigEntry,
+    async_add_entities: AddConfigEntryEntitiesCallback,
 ) -> None:
     """Set up the Monoprice 6-zone amplifier platform."""
     port = config_entry.data[CONF_PORT]
 
-    monoprice = hass.data[DOMAIN][config_entry.entry_id][MONOPRICE_OBJECT]
+    monoprice = config_entry.runtime_data.client
 
     sources = _get_sources(config_entry)
 
@@ -94,14 +99,13 @@ async def async_setup_entry(
     for i in range(1, 4):
         for j in range(1, 7):
             zone_id = (i * 10) + j
-            _LOGGER.info("Adding zone %d for port %s", zone_id, port)
+            _LOGGER.debug("Adding zone %d for port %s", zone_id, port)
             entities.append(
                 MonopriceZone(monoprice, sources, config_entry.entry_id, zone_id)
             )
 
     # only call update before add if it's the first run so we can try to detect zones
-    first_run = hass.data[DOMAIN][config_entry.entry_id][FIRST_RUN]
-    async_add_entities(entities, first_run)
+    async_add_entities(entities, config_entry.runtime_data.first_run)
 
     platform = entity_platform.async_get_current_platform()
 
@@ -121,7 +125,7 @@ async def async_setup_entry(
                 entity.select_source_for_zones(service_call)
             elif service_call.service == SERVICE_SET_ALL_ZONES_SOURCE:
                 for entity in entities:
-                    entity.select_source_for_zones(service_call); 
+                    entity.select_source_for_zones(service_call)
 
     @service.verify_domain_control(DOMAIN)
     async def async_service_handle(service_call: core.ServiceCall) -> None:
@@ -132,7 +136,6 @@ async def async_setup_entry(
             return
 
         hass.async_add_executor_job(_call_service, entities, service_call)
-
 
     hass.services.async_register(
         DOMAIN,
@@ -183,9 +186,10 @@ async def async_setup_entry(
         schema=SET_ZONE_SOURCE_SCHEMA,
     )
 
+
 class MonopriceZone(MediaPlayerEntity):
     """Representation of a Monoprice amplifier zone."""
-    
+
     _attr_device_class = MediaPlayerDeviceClass.RECEIVER
     _attr_supported_features = (
         MediaPlayerEntityFeature.VOLUME_MUTE
@@ -198,6 +202,7 @@ class MonopriceZone(MediaPlayerEntity):
     )
     _attr_has_entity_name = True
     _attr_name = None
+    _attr_volume_step = 1 / MAX_VOLUME
     _attr_sound_mode_list = ["Normal", "High Bass", "Medium Bass", "Low Bass"]
     _attr_sound_mode = None
 
@@ -219,10 +224,9 @@ class MonopriceZone(MediaPlayerEntity):
             model="6-Zone Amplifier",
             name=f"Zone {self._zone_id}",
         )
-        
+
         self._snapshot = None
         self._update_success = True
-        
 
     def update(self) -> None:
         """Retrieve latest state."""
@@ -246,10 +250,11 @@ class MonopriceZone(MediaPlayerEntity):
         self._attr_is_volume_muted = state.mute
         idx = state.source
         self._attr_source = self._source_id_name.get(idx)
+
     @property
     def entity_registry_enabled_default(self) -> bool:
         """Return if the entity should be enabled when first added to the entity registry."""
-        if(self._zone_id == 10 or self._zone_id == 20 or self._zone_id == 30):
+        if self._zone_id in (10, 20, 30):
             return False
         return self._zone_id < 20 or self._update_success
 
@@ -291,25 +296,11 @@ class MonopriceZone(MediaPlayerEntity):
         """Set volume level, range 0..1."""
         self._monoprice.set_volume(self._zone_id, round(volume * MAX_VOLUME))
 
-    def volume_up(self) -> None:
-        """Volume up the media player."""
-        if self.volume_level is None:
-            return
-        volume = round(self.volume_level * MAX_VOLUME)
-        self._monoprice.set_volume(self._zone_id, min(volume + 1, MAX_VOLUME))
-
-    def volume_down(self) -> None:
-        """Volume down media player."""
-        if self.volume_level is None:
-            return
-        volume = round(self.volume_level * MAX_VOLUME)
-        self._monoprice.set_volume(self._zone_id, max(volume - 1, 0))
-
     def set_balance(self, call) -> None:
         """Set balance level."""
         level = int(call.data.get(ATTR_BALANCE))
         self._monoprice.set_balance(self._zone_id, level)
- 
+
     def set_bass(self, call) -> None:
         """Set bass level."""
         level = int(call.data.get(ATTR_BASS))
@@ -323,16 +314,16 @@ class MonopriceZone(MediaPlayerEntity):
     def select_source_for_zones(self, call) -> None:
         """Set input source for all zones."""
         source = int(call.data.get(ATTR_ZONE_SOURCE))
-        self._monoprice.set_source(self._zone_id, source)         
+        self._monoprice.set_source(self._zone_id, source)
 
     def select_sound_mode(self, sound_mode) -> None:
         """Switch the sound mode of the entity."""
         self._sound_mode = sound_mode
-        if(sound_mode == "Normal"):
+        if sound_mode == "Normal":
             self._monoprice.set_bass(self._zone_id, 7)
-        elif(sound_mode == "High Bass"):
+        elif sound_mode == "High Bass":
             self._monoprice.set_bass(self._zone_id, 12)
-        elif(sound_mode == "Medium Bass"):
+        elif sound_mode == "Medium Bass":
             self._monoprice.set_bass(self._zone_id, 10)
-        elif(sound_mode == "Low Bass"):
+        elif sound_mode == "Low Bass":
             self._monoprice.set_bass(self._zone_id, 3)

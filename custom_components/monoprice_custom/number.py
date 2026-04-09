@@ -1,54 +1,54 @@
 """Support for interfacing with Monoprice 6 zone home audio controller."""
-from code import interact
+
+from __future__ import annotations
+
 import logging
 
 from serial import SerialException
 
 from homeassistant import core
-try:
-    from homeassistant.components.number import (
-        NumberEntity as NumberEntity,
-    )
-except ImportError:
-    from homeassistant.components.number import NumberEntity
-
-from homeassistant.config_entries import ConfigEntry
+from homeassistant.components.number import NumberEntity
 from homeassistant.const import CONF_PORT
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers import config_validation as cv, entity_platform, service
-from homeassistant.helpers.entity import DeviceInfo
-from homeassistant.helpers.entity_platform import AddEntitiesCallback
+from homeassistant.helpers import entity_platform, service
+from homeassistant.helpers.device_registry import DeviceInfo
+from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
-from .const import (
-    DOMAIN,
-    FIRST_RUN,
-    MONOPRICE_OBJECT
-)
+from . import MonopriceConfigEntry
+from .const import DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
 PARALLEL_UPDATES = 1
 
+
 async def async_setup_entry(
     hass: HomeAssistant,
-    config_entry: ConfigEntry,
-    async_add_entities: AddEntitiesCallback,
+    config_entry: MonopriceConfigEntry,
+    async_add_entities: AddConfigEntryEntitiesCallback,
 ) -> None:
     """Set up the Monoprice 6-zone amplifier platform."""
     port = config_entry.data[CONF_PORT]
-    monoprice = hass.data[DOMAIN][config_entry.entry_id][MONOPRICE_OBJECT]
+    monoprice = config_entry.runtime_data.client
 
     entities = []
     for i in range(1, 4):
         for j in range(1, 7):
             zone_id = (i * 10) + j
-            _LOGGER.info("Adding number entities for zone %d for port %s", zone_id, port)
-            entities.append(MonopriceZone(monoprice, "Balance", config_entry.entry_id, zone_id))
-            entities.append(MonopriceZone(monoprice, "Bass", config_entry.entry_id, zone_id))
-            entities.append(MonopriceZone(monoprice, "Treble", config_entry.entry_id, zone_id))
+            _LOGGER.debug(
+                "Adding number entities for zone %d for port %s", zone_id, port
+            )
+            entities.append(
+                MonopriceZone(monoprice, "Balance", config_entry.entry_id, zone_id)
+            )
+            entities.append(
+                MonopriceZone(monoprice, "Bass", config_entry.entry_id, zone_id)
+            )
+            entities.append(
+                MonopriceZone(monoprice, "Treble", config_entry.entry_id, zone_id)
+            )
 
     # only call update before add if it's the first run so we can try to detect zones
-    first_run = hass.data[DOMAIN][config_entry.entry_id][FIRST_RUN]
-    async_add_entities(entities, first_run)
+    async_add_entities(entities, config_entry.runtime_data.first_run)
 
     platform = entity_platform.async_get_current_platform()
 
@@ -60,6 +60,7 @@ async def async_setup_entry(
         if not entities:
             return
 
+
 class MonopriceZone(NumberEntity):
     """Representation of a Monoprice amplifier zone."""
 
@@ -68,7 +69,7 @@ class MonopriceZone(NumberEntity):
         self._monoprice = monoprice
         self._control_type = control_type
         self._zone_id = zone_id
-        
+
         self._attr_unique_id = f"{namespace}_{self._zone_id}_{self._control_type}"
         self._attr_has_entity_name = True
         self._attr_name = f"{control_type} level"
@@ -78,24 +79,24 @@ class MonopriceZone(NumberEntity):
             identifiers={(DOMAIN, f"{namespace}_{self._zone_id}")},
             manufacturer="Monoprice",
             model="6-Zone Amplifier",
-            name=f"Zone {self._zone_id}"
+            name=f"Zone {self._zone_id}",
         )
 
-        if(control_type == "Balance"):
+        if control_type == "Balance":
             self._attr_native_min_value = 0
             self._attr_native_max_value = 20
             self._attr_icon = "mdi:scale-balance"
-        elif(control_type == "Bass"):
+        elif control_type == "Bass":
             self._attr_native_min_value = -7
             self._attr_native_max_value = 14
             self._attr_icon = "mdi:speaker"
-        elif(control_type == "Treble"):
+        elif control_type == "Treble":
             self._attr_native_min_value = -7
             self._attr_native_max_value = 14
             self._attr_icon = "mdi:surround-sound"
-            
+
         self._update_success = True
-        
+
     def update(self):
         """Retrieve latest value."""
         if self._zone_id > 20:
@@ -113,25 +114,25 @@ class MonopriceZone(NumberEntity):
             self._update_success = False
             return
 
-        if(self._control_type == "Balance"):
+        if self._control_type == "Balance":
             self._attr_native_value = state.balance
-        elif(self._control_type == "Bass"):
+        elif self._control_type == "Bass":
             self._attr_native_value = state.bass
-        elif(self._control_type == "Treble"):
+        elif self._control_type == "Treble":
             self._attr_native_value = state.treble
 
     @property
     def entity_registry_enabled_default(self) -> bool:
         """Return if the entity should be enabled when first added to the entity registry."""
-        if(self._zone_id == 10 or self._zone_id == 20 or self._zone_id == 30):
+        if self._zone_id in (10, 20, 30):
             return False
         return self._zone_id < 20 or self._update_success
 
     def set_native_value(self, value: float) -> None:
         """Update the current value."""
-        if(self._control_type == "Balance"):
+        if self._control_type == "Balance":
             self._monoprice.set_balance(self._zone_id, int(value))
-        elif(self._control_type == "Bass"):
+        elif self._control_type == "Bass":
             self._monoprice.set_bass(self._zone_id, int(value))
-        elif(self._control_type == "Treble"):
+        elif self._control_type == "Treble":
             self._monoprice.set_treble(self._zone_id, int(value))

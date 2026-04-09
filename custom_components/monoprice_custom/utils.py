@@ -1,8 +1,11 @@
+"""Utility functions for the Monoprice 6-Zone Amplifier integration."""
+
+from __future__ import annotations
+
 from homeassistant.core import callback
 
-from .const import (
-    CONF_SOURCES,
-)
+from .const import CONF_SOURCES
+
 
 @callback
 def _get_sources_from_dict(data):
@@ -12,6 +15,7 @@ def _get_sources_from_dict(data):
     source_names = sorted(source_name_id.keys(), key=lambda v: source_name_id[v])
 
     return [source_id_name, source_name_id, source_names]
+
 
 @callback
 def _get_sources(config_entry):
