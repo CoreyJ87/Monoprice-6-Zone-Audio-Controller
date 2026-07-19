@@ -1,7 +1,5 @@
 """Utility functions for the Monoprice 6-Zone Amplifier integration."""
 
-from __future__ import annotations
-
 from homeassistant.core import callback
 
 from .const import CONF_SOURCES
