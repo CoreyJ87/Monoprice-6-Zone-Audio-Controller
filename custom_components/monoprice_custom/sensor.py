@@ -1,16 +1,13 @@
 """Support for interfacing with Monoprice 6 zone home audio controller."""
 
-from __future__ import annotations
-
 import logging
+from typing import override
 
-from serial import SerialException
+from serialx import SerialException
 
-from homeassistant import core
 from homeassistant.components.sensor import SensorEntity
 from homeassistant.const import CONF_PORT
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers import entity_platform, service
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
@@ -56,16 +53,6 @@ async def async_setup_entry(
 
     # only call update before add if it's the first run so we can try to detect zones
     async_add_entities(entities, config_entry.runtime_data.first_run)
-
-    platform = entity_platform.async_get_current_platform()
-
-    @service.verify_domain_control(DOMAIN)
-    async def async_service_handle(service_call: core.ServiceCall) -> None:
-        """Handle for services."""
-        entities = await platform.async_extract_from_service(service_call)
-
-        if not entities:
-            return
 
 
 class MonopriceZone(SensorEntity):
@@ -125,6 +112,7 @@ class MonopriceZone(SensorEntity):
             self._attr_native_value = str(state.source)
 
     @property
+    @override
     def entity_registry_enabled_default(self) -> bool:
         """Return if the entity should be enabled when first added to the entity registry."""
         if self._zone_id in (10, 20, 30):

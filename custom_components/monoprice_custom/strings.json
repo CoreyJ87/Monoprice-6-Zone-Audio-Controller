@@ -51,16 +51,54 @@
       "description": "Restores a snapshot of the media player zone."
     },
     "set_balance": {
-      "name": "Set Balance",
-      "description": "Set the zone balance level."
+      "name": "Set balance",
+      "description": "Sets the balance level of the targeted zones.",
+      "fields": {
+        "level": {
+          "name": "Level",
+          "description": "Integer from 0 to 20 inclusive, where 0 is -10 (left), 10 is center and 20 is +10 (right)."
+        }
+      }
     },
     "set_bass": {
-      "name": "Set Bass",
-      "description": "Set the bass level."
+      "name": "Set bass",
+      "description": "Sets the bass level of the targeted zones.",
+      "fields": {
+        "level": {
+          "name": "Level",
+          "description": "Integer from 0 to 14 inclusive."
+        }
+      }
     },
     "set_treble": {
-      "name": "Set Treble",
-      "description": "Set treble level."
+      "name": "Set treble",
+      "description": "Sets the treble level of the targeted zones.",
+      "fields": {
+        "level": {
+          "name": "Level",
+          "description": "Integer from 0 to 14 inclusive."
+        }
+      }
+    },
+    "set_zone_source": {
+      "name": "Set zone source",
+      "description": "Sets the input source of the targeted zones by its numeric id.",
+      "fields": {
+        "source": {
+          "name": "Source",
+          "description": "Integer from 1 to 6 inclusive."
+        }
+      }
+    },
+    "set_all_zones_source": {
+      "name": "Set all zones source",
+      "description": "Sets the input source of every zone on every configured amplifier.",
+      "fields": {
+        "source": {
+          "name": "Source",
+          "description": "Integer from 1 to 6 inclusive."
+        }
+      }
     }
   }
 }

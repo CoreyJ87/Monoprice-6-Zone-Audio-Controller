@@ -4,3 +4,7 @@ pymonoprice
 pymonoprice/*
 .DS_Store
 custom_components/media_player_old.py
+push_to_dev.sh
+push_to_prod.sh
+__pycache__/
+*.pyc

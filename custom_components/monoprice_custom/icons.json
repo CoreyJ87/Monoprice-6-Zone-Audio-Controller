@@ -1,0 +1,25 @@
+{
+  "services": {
+    "snapshot": {
+      "service": "mdi:content-copy"
+    },
+    "restore": {
+      "service": "mdi:content-paste"
+    },
+    "set_balance": {
+      "service": "mdi:scale-balance"
+    },
+    "set_bass": {
+      "service": "mdi:speaker"
+    },
+    "set_treble": {
+      "service": "mdi:surround-sound"
+    },
+    "set_zone_source": {
+      "service": "mdi:import"
+    },
+    "set_all_zones_source": {
+      "service": "mdi:swap-horizontal"
+    }
+  }
+}

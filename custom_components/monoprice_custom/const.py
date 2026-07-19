@@ -21,9 +21,5 @@ SERVICE_SET_TREBLE = "set_treble"
 SERVICE_SET_ALL_ZONES_SOURCE = "set_all_zones_source"
 SERVICE_SET_ZONE_SOURCE = "set_zone_source"
 
-ATTR_BALANCE = "level"
-ATTR_BASS = "level"
-ATTR_TREBLE = "level"
-
-ATTR_ZONE_SOURCE = "source"
-ATTR_ALL_ZONES_SOURCE = "source"
+ATTR_LEVEL = "level"
+ATTR_SOURCE = "source"

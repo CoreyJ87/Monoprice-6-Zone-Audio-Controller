@@ -1,16 +1,13 @@
 """Support for interfacing with Monoprice 6 zone home audio controller."""
 
-from __future__ import annotations
-
 import logging
+from typing import override
 
-from serial import SerialException
+from serialx import SerialException
 
-from homeassistant import core
 from homeassistant.components.number import NumberEntity
 from homeassistant.const import CONF_PORT
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers import entity_platform, service
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
@@ -50,16 +47,6 @@ async def async_setup_entry(
     # only call update before add if it's the first run so we can try to detect zones
     async_add_entities(entities, config_entry.runtime_data.first_run)
 
-    platform = entity_platform.async_get_current_platform()
-
-    @service.verify_domain_control(DOMAIN)
-    async def async_service_handle(service_call: core.ServiceCall) -> None:
-        """Handle for services."""
-        entities = await platform.async_extract_from_service(service_call)
-
-        if not entities:
-            return
-
 
 class MonopriceZone(NumberEntity):
     """Representation of a Monoprice amplifier zone."""
@@ -86,13 +73,15 @@ class MonopriceZone(NumberEntity):
             self._attr_native_min_value = 0
             self._attr_native_max_value = 20
             self._attr_icon = "mdi:scale-balance"
+        # Bass/treble are 0-14 on the wire with 7 meaning flat; expose them
+        # as -7..+7 (cut..boost) and convert when talking to the amp.
         elif control_type == "Bass":
             self._attr_native_min_value = -7
-            self._attr_native_max_value = 14
+            self._attr_native_max_value = 7
             self._attr_icon = "mdi:speaker"
         elif control_type == "Treble":
             self._attr_native_min_value = -7
-            self._attr_native_max_value = 14
+            self._attr_native_max_value = 7
             self._attr_icon = "mdi:surround-sound"
 
         self._update_success = True
@@ -117,11 +106,12 @@ class MonopriceZone(NumberEntity):
         if self._control_type == "Balance":
             self._attr_native_value = state.balance
         elif self._control_type == "Bass":
-            self._attr_native_value = state.bass
+            self._attr_native_value = state.bass - 7
         elif self._control_type == "Treble":
-            self._attr_native_value = state.treble
+            self._attr_native_value = state.treble - 7
 
     @property
+    @override
     def entity_registry_enabled_default(self) -> bool:
         """Return if the entity should be enabled when first added to the entity registry."""
         if self._zone_id in (10, 20, 30):
@@ -133,6 +123,6 @@ class MonopriceZone(NumberEntity):
         if self._control_type == "Balance":
             self._monoprice.set_balance(self._zone_id, int(value))
         elif self._control_type == "Bass":
-            self._monoprice.set_bass(self._zone_id, int(value))
+            self._monoprice.set_bass(self._zone_id, int(value) + 7)
         elif self._control_type == "Treble":
-            self._monoprice.set_treble(self._zone_id, int(value))
+            self._monoprice.set_treble(self._zone_id, int(value) + 7)
