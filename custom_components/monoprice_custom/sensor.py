@@ -3,19 +3,24 @@
 import logging
 from typing import override
 
-from serialx import SerialException
-
 from homeassistant.components.sensor import SensorEntity
-from homeassistant.const import CONF_PORT
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
 from . import MonopriceConfigEntry
-from .const import DOMAIN
+from .coordinator import MonopriceCoordinator
+from .entity import MonopriceEntity
 
 _LOGGER = logging.getLogger(__name__)
-PARALLEL_UPDATES = 1
+PARALLEL_UPDATES = 0
+
+SENSOR_ICONS = {
+    "Keypad": "mdi:dialpad",
+    # (sic) name kept for backwards compatibility with existing unique_ids
+    "Public Anouncement": "mdi:bullhorn",
+    "Do Not Disturb": "mdi:weather-night",
+    "Source": "mdi:source-branch",
+}
 
 
 async def async_setup_entry(
@@ -24,97 +29,43 @@ async def async_setup_entry(
     async_add_entities: AddConfigEntryEntitiesCallback,
 ) -> None:
     """Set up the Monoprice 6-zone amplifier platform."""
-    port = config_entry.data[CONF_PORT]
-    monoprice = config_entry.runtime_data.client
+    coordinator = config_entry.runtime_data
 
-    entities = []
-    for i in range(1, 4):
-        for j in range(1, 7):
-            zone_id = (i * 10) + j
-            _LOGGER.debug(
-                "Adding sensor entities for zone %d for port %s", zone_id, port
-            )
-            entities.append(
-                MonopriceZone(monoprice, "Keypad", config_entry.entry_id, zone_id)
-            )
-            entities.append(
-                MonopriceZone(
-                    monoprice, "Public Anouncement", config_entry.entry_id, zone_id
-                )
-            )
-            entities.append(
-                MonopriceZone(
-                    monoprice, "Do Not Disturb", config_entry.entry_id, zone_id
-                )
-            )
-            entities.append(
-                MonopriceZone(monoprice, "Source", config_entry.entry_id, zone_id)
-            )
-
-    # only call update before add if it's the first run so we can try to detect zones
-    async_add_entities(entities, config_entry.runtime_data.first_run)
+    async_add_entities(
+        MonopriceZone(coordinator, sensor_type, config_entry.entry_id, (i * 10) + j)
+        for i in range(1, 4)
+        for j in range(1, 7)
+        for sensor_type in SENSOR_ICONS
+    )
 
 
-class MonopriceZone(SensorEntity):
+class MonopriceZone(MonopriceEntity, SensorEntity):
     """Representation of a Monoprice amplifier zone."""
 
-    def __init__(self, monoprice, sensor_type, namespace, zone_id):
+    def __init__(
+        self,
+        coordinator: MonopriceCoordinator,
+        sensor_type: str,
+        namespace: str,
+        zone_id: int,
+    ) -> None:
         """Initialize new zone sensors."""
-        self._monoprice = monoprice
+        super().__init__(coordinator, namespace, zone_id)
         self._sensor_type = sensor_type
-        self._zone_id = zone_id
-        self._attr_unique_id = f"{namespace}_{self._zone_id}_{self._sensor_type}"
-        self._attr_has_entity_name = True
-        self._attr_name = f"{sensor_type}"
-        self._attr_native_value = None
-        self._attr_device_info = DeviceInfo(
-            identifiers={(DOMAIN, f"{namespace}_{self._zone_id}")},
-            manufacturer="Monoprice",
-            model="6-Zone Amplifier",
-            name=f"Zone {self._zone_id}",
-        )
-
-        if sensor_type == "Keypad":
-            self._attr_icon = "mdi:dialpad"
-        elif sensor_type == "Public Anouncement":
-            self._attr_icon = "mdi:bullhorn"
-        elif sensor_type == "Do Not Disturb":
-            self._attr_icon = "mdi:weather-night"
-        elif sensor_type == "Source":
-            self._attr_icon = "mdi:source-branch"
-
-        self._update_success = True
-
-    def update(self):
-        """Retrieve latest value."""
-        if self._zone_id > 20:
-            self._update_success = False
-            return
-
-        try:
-            state = self._monoprice.zone_status(self._zone_id)
-        except SerialException:
-            self._update_success = False
-            _LOGGER.warning("Could not update zone %d", self._zone_id)
-            return
-
-        if not state:
-            self._update_success = False
-            return
-
-        if self._sensor_type == "Keypad":
-            self._attr_native_value = "Connected" if state.keypad else "Disconnected"
-        elif self._sensor_type == "Public Anouncement":
-            self._attr_native_value = "On" if state.pa else "Off"
-        elif self._sensor_type == "Do Not Disturb":
-            self._attr_native_value = "On" if state.do_not_disturb else "Off"
-        elif self._sensor_type == "Source":
-            self._attr_native_value = str(state.source)
+        self._attr_unique_id = f"{namespace}_{zone_id}_{sensor_type}"
+        self._attr_name = sensor_type
+        self._attr_icon = SENSOR_ICONS[sensor_type]
 
     @property
     @override
-    def entity_registry_enabled_default(self) -> bool:
-        """Return if the entity should be enabled when first added to the entity registry."""
-        if self._zone_id in (10, 20, 30):
-            return False
-        return self._zone_id < 20 or self._update_success
+    def native_value(self) -> str | None:
+        """Return the sensor value."""
+        if (status := self.zone_status) is None:
+            return None
+        if self._sensor_type == "Keypad":
+            return "Connected" if status.keypad else "Disconnected"
+        if self._sensor_type == "Public Anouncement":
+            return "On" if status.pa else "Off"
+        if self._sensor_type == "Do Not Disturb":
+            return "On" if status.do_not_disturb else "Off"
+        return str(status.source)

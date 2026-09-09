@@ -11,6 +11,7 @@ CONF_SOURCE_4 = "source_4"
 CONF_SOURCE_5 = "source_5"
 CONF_SOURCE_6 = "source_6"
 
+# legacy key still present in stored config entries; no longer used
 CONF_NOT_FIRST_RUN = "not_first_run"
 
 SERVICE_SNAPSHOT = "snapshot"

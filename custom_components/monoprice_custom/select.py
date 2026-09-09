@@ -1,16 +1,16 @@
 """Support for Monoprice 6-zone source selection."""
 
 import logging
-
-from serialx import SerialException
+from typing import override
 
 from homeassistant.components.select import SelectEntity
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers.device_registry import DeviceInfo
+from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
 from . import MonopriceConfigEntry
-from .const import DOMAIN
+from .coordinator import MAIN_ZONES, MonopriceCoordinator
+from .entity import MonopriceEntity
 from .utils import _get_sources
 
 _LOGGER = logging.getLogger(__name__)
@@ -24,64 +24,59 @@ async def async_setup_entry(
     async_add_entities: AddConfigEntryEntitiesCallback,
 ) -> None:
     """Set up the Monoprice source select entities."""
-    monoprice = config_entry.runtime_data.client
+    coordinator = config_entry.runtime_data
     source_id_name, source_name_id, source_names = _get_sources(config_entry)
 
     async_add_entities(
         MonopriceSourceSelect(
-            monoprice,
+            coordinator,
             zone_id,
             config_entry.entry_id,
             source_id_name,
             source_name_id,
             source_names,
         )
-        for zone_id in range(11, 17)
+        for zone_id in MAIN_ZONES
     )
 
 
-class MonopriceSourceSelect(SelectEntity):
+class MonopriceSourceSelect(MonopriceEntity, SelectEntity):
     """Representation of a Monoprice source selector."""
 
-    _attr_has_entity_name = True
     _attr_name = "Source"
 
     def __init__(
-        self, monoprice, zone_id, namespace, source_id_name, source_name_id, source_names
-    ):
+        self,
+        coordinator: MonopriceCoordinator,
+        zone_id: int,
+        namespace: str,
+        source_id_name,
+        source_name_id,
+        source_names,
+    ) -> None:
         """Initialize new zone source select."""
-        self._monoprice = monoprice
-        self._zone_id = zone_id
+        super().__init__(coordinator, namespace, zone_id)
         self._source_id_name = source_id_name
         self._source_name_id = source_name_id
         self._attr_options = source_names
-        self._attr_current_option = None
-        self._attr_unique_id = f"{namespace}_source_{self._zone_id}"
-        self._attr_device_info = DeviceInfo(
-            identifiers={(DOMAIN, f"{namespace}_{self._zone_id}")},
-            manufacturer="Monoprice",
-            model="6-Zone Amplifier",
-            name=f"Zone {self._zone_id}",
-        )
+        self._attr_unique_id = f"{namespace}_source_{zone_id}"
 
-    def update(self) -> None:
-        """Retrieve the current source from the amplifier."""
-        try:
-            state = self._monoprice.zone_status(self._zone_id)
-        except SerialException:
-            _LOGGER.warning("Could not update source for zone %d", self._zone_id)
-            return
+    @property
+    @override
+    def current_option(self) -> str | None:
+        """Return the name of the zone's current source."""
+        if (status := self.zone_status) is None:
+            return None
+        return self._source_id_name.get(status.source)
 
-        if not state:
-            return
-
-        self._attr_current_option = self._source_id_name.get(state.source)
-
-    def select_option(self, option: str) -> None:
+    @override
+    async def async_select_option(self, option: str) -> None:
         """Change the source."""
-        source_id = self._source_name_id.get(option)
-        if source_id is None:
-            _LOGGER.error("Invalid source name selected: %s", option)
-            return
-        self._monoprice.set_source(self._zone_id, source_id)
-        self._attr_current_option = option
+        if (source_id := self._source_name_id.get(option)) is None:
+            raise ServiceValidationError(f"Invalid source name selected: {option}")
+        zone_id = self._zone_id
+        await self.coordinator.async_command(
+            lambda client: client.set_source(zone_id, source_id),
+            [zone_id],
+            source=source_id,
+        )

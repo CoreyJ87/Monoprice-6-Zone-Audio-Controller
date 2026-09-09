@@ -7,6 +7,7 @@ from homeassistant.config_entries import ConfigEntryState
 from homeassistant.core import HomeAssistant, ServiceCall, callback
 from homeassistant.helpers import config_validation as cv, service
 
+from .coordinator import MAIN_ZONES
 from .const import (
     ATTR_LEVEL,
     ATTR_SOURCE,
@@ -38,13 +39,10 @@ SET_ALL_ZONES_SOURCE_SCHEMA = vol.Schema(
     }
 )
 
-# Main amplifier zones; expansion unit zones (21-36) are not polled by this
-# integration, so they are not addressed here either.
-ALL_ZONE_IDS = range(11, 17)
-
-
 def _set_all_zones(client, source: int) -> None:
-    for zone_id in ALL_ZONE_IDS:
+    # Main amplifier zones only; expansion unit zones (21-36) are not polled by
+    # this integration, so they are not addressed here either.
+    for zone_id in MAIN_ZONES:
         client.set_source(zone_id, source)
 
 
@@ -54,8 +52,10 @@ async def _async_set_all_zones_source(call: ServiceCall) -> None:
     for entry in call.hass.config_entries.async_entries(DOMAIN):
         if entry.state is not ConfigEntryState.LOADED:
             continue
-        await call.hass.async_add_executor_job(
-            _set_all_zones, entry.runtime_data.client, source
+        await entry.runtime_data.async_command(
+            lambda client: _set_all_zones(client, source),
+            list(MAIN_ZONES),
+            source=source,
         )
 
 
